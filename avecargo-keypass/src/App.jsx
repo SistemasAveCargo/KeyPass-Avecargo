@@ -1,31 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { Key, Lock, Mail, Plus, Trash2, Edit, ExternalLink, Copy, Eye, EyeOff, LogOut, Search, Download } from 'lucide-react';
+import { Key, Plus, Trash2, Edit, ExternalLink, Copy, Eye, EyeOff, LogOut, Download, UserPlus, LogIn, ShieldCheck, User } from 'lucide-react';
 
-// URL de tu API de Google Apps Script
-const API_URL = "https://script.google.com/macros/s/AKfycbxfpbg_HC_azH8luzAKUyI9Q8yexTB9mICUr3vkn4bnkk7c8wUdDfsrXwmrvPfS_zbU/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbwYeqrIRsepHUaEOXiY9GpjLA-CS73qC09acKuJLf7KMNsbhXHyJF-vZglofNN6coD4/exec"; 
 
 export default function App() {
   // --- ESTADOS DE AUTENTICACIÓN Y DATOS ---
   const [user, setUser] = useState(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwords, setPasswords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
 
-  // --- ESTADOS DE MODAL Y FORMULARIO ---
+  // --- ESTADOS DE MODALES Y FORMULARIOS ---
   const [modalOpen, setModalOpen] = useState(false);
+  const [passModalOpen, setPassModalOpen] = useState(false); // Modal Cambiar Contraseña
   const [editingItem, setEditingItem] = useState(null);
   const [visiblePass, setVisiblePass] = useState({});
+  
   const [form, setForm] = useState({ 
-    aplicacion: '', 
-    usuario: '', 
-    contrasena: '', 
-    url: '', 
-    descripcion: '' 
+    aplicacion: '', usuario: '', contrasena: '', url: '', descripcion: '' 
   });
 
-  // --- ESTADO Y EVENTO PWA (INSTALACIÓN) ---
+  const [passForm, setPassForm] = useState({
+    oldPassword: '', newPassword: '', confirmPassword: ''
+  });
+
+  // --- PWA INSTALACIÓN ---
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   useEffect(() => {
@@ -33,24 +36,18 @@ export default function App() {
       e.preventDefault();
       setDeferredPrompt(e);
     };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-    }
+    if (outcome === 'accepted') setDeferredPrompt(null);
   };
 
-  // --- CONEXIÓN API (Google Apps Script) ---
+  // --- API CALL ---
   const apiCall = async (data) => {
     try {
       const res = await fetch(API_URL, {
@@ -64,35 +61,71 @@ export default function App() {
     }
   };
 
-  // --- MÉTODOS CRUD Y ACCIONES ---
-  const handleLogin = async (e) => {
+  // --- AUTENTICACIÓN ---
+  const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const res = await apiCall({ action: 'login', email, password });
-    setLoading(false);
-    
-    if (res.success) {
-      setUser(res.user);
-      loadPasswords();
+
+    if (isRegistering) {
+      const res = await apiCall({ action: 'register', email, password, nombre });
+      setLoading(false);
+      if (res.success) {
+        alert("¡Cuenta creada con éxito! Ahora puedes iniciar sesión.");
+        setIsRegistering(false);
+        setPassword('');
+      } else {
+        alert(res.message || "Error al registrar el usuario.");
+      }
     } else {
-      alert(res.message || "Error al iniciar sesión.");
+      const res = await apiCall({ action: 'login', email, password });
+      setLoading(false);
+      if (res.success) {
+        setUser(res.user);
+        loadPasswords();
+      } else {
+        alert(res.message || "Error al iniciar sesión.");
+      }
     }
   };
 
+  // --- CAMBIAR CONTRASEÑA DE USUARIO ---
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passForm.newPassword !== passForm.confirmPassword) {
+      alert("Las nuevas contraseñas no coinciden.");
+      return;
+    }
+
+    setLoading(true);
+    const res = await apiCall({ 
+      action: 'changePassword', 
+      email: user.email, 
+      oldPassword: passForm.oldPassword, 
+      newPassword: passForm.newPassword 
+    });
+    setLoading(false);
+
+    if (res.success) {
+      alert("Contraseña actualizada exitosamente.");
+      setPassModalOpen(false);
+      setPassForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+    } else {
+      alert(res.message || "Error al actualizar la contraseña.");
+    }
+  };
+
+  // --- CRUD DE REGISTROS ---
   const loadPasswords = async () => {
     setLoading(true);
     const res = await apiCall({ action: 'getPasswords' });
     setLoading(false);
-    if (res.success) {
-      setPasswords(res.data || []);
-    }
+    if (res.success) setPasswords(res.data || []);
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
     const payload = editingItem ? { ...form, id: editingItem.id } : form;
-    
     const res = await apiCall({ action: 'savePassword', item: payload });
     setLoading(false);
     
@@ -129,7 +162,6 @@ export default function App() {
     setVisiblePass((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Filtrado de la lista en tiempo real
   const filteredPasswords = passwords.filter(p => 
     p.aplicacion.toLowerCase().includes(search.toLowerCase()) ||
     p.usuario.toLowerCase().includes(search.toLowerCase()) ||
@@ -137,7 +169,7 @@ export default function App() {
   );
 
   // ==========================================
-  // VISTA 1: INICIO DE SESIÓN (LOGIN)
+  // VISTA 1: LOGIN Y REGISTRO
   // ==========================================
   if (!user) {
     return (
@@ -146,9 +178,25 @@ export default function App() {
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <Key size={40} color="#D3131A" />
             <h2 style={{ marginTop: '10px' }}>Ave<span style={{ color: '#D3131A' }}>Cargo</span></h2>
-            <p style={{ color: '#666', fontSize: '14px' }}>KeyPass Vault</p>
+            <p style={{ color: '#666', fontSize: '14px' }}>
+              {isRegistering ? 'Crear una nueva cuenta' : 'KeyPass Vault'}
+            </p>
           </div>
-          <form onSubmit={handleLogin}>
+
+          <form onSubmit={handleAuth}>
+            {isRegistering && (
+              <div className="input-group">
+                <label>Nombre Completo</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={nombre} 
+                  onChange={e => setNombre(e.target.value)} 
+                  placeholder="Ej. Juan Pérez" 
+                />
+              </div>
+            )}
+
             <div className="input-group">
               <label>Correo Electrónico</label>
               <input 
@@ -159,6 +207,7 @@ export default function App() {
                 placeholder="usuario@avecargo.com" 
               />
             </div>
+
             <div className="input-group">
               <label>Contraseña</label>
               <input 
@@ -169,41 +218,59 @@ export default function App() {
                 placeholder="••••••••" 
               />
             </div>
-            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
-              {loading ? 'Verificando...' : 'Ingresar'}
+
+            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '10px' }} disabled={loading}>
+              {loading 
+                ? 'Procesando...' 
+                : isRegistering 
+                  ? <><UserPlus size={16} /> Crear Cuenta</> 
+                  : <><LogIn size={16} /> Ingresar</>
+              }
             </button>
           </form>
+
+          <div style={{ textAlign: 'center', marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+            <button 
+              type="button" 
+              onClick={() => setIsRegistering(!isRegistering)} 
+              style={{ background: 'none', border: 'none', color: '#D3131A', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}
+            >
+              {isRegistering 
+                ? '¿Ya tienes cuenta? Inicia sesión aquí' 
+                : '¿No tienes cuenta? Regístrate aquí'
+              }
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   // ==========================================
-  // VISTA 2: APLICACIÓN PRINCIPAL (VAULT)
+  // VISTA 2: VAULT DE CONTRASEÑAS
   // ==========================================
   return (
     <div>
-      {/* Barra de Navegación Superior */}
       <nav style={{ background: 'white', borderBottom: '3px solid #D3131A', padding: '15px 0' }}>
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3>Ave<span style={{ color: '#D3131A' }}>Cargo</span> <small style={{ fontSize: '12px', color: '#666' }}>KeyPass</small></h3>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             {deferredPrompt && (
               <button className="btn btn-primary" onClick={handleInstallClick}>
-                <Download size={16} /> Instalar App
+                <Download size={16} /> Instalar
               </button>
             )}
-            <button className="btn btn-outline" onClick={() => setUser(null)}>
-              <LogOut size={16} /> Salir
+            <button className="btn btn-outline" onClick={() => setPassModalOpen(true)} title="Cambiar mi contraseña">
+              <ShieldCheck size={16} /> <span className="desktop-only">Seguridad</span>
+            </button>
+            <button className="btn btn-outline" onClick={() => setUser(null)} title="Cerrar sesión">
+              <LogOut size={16} />
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Contenido Principal */}
       <div className="container" style={{ marginTop: '20px' }}>
-        
-        {/* Controles: Búsqueda y Agregar */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
           <input 
             type="text" 
@@ -224,9 +291,8 @@ export default function App() {
           </button>
         </div>
 
-        {loading && <p style={{ textAlign: 'center', margin: '20px 0' }}>Cargando registros...</p>}
+        {loading && <p style={{ textAlign: 'center', margin: '20px 0' }}>Cargando...</p>}
 
-        {/* Tarjetas de Contraseñas (Grid Responsivo) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
           {filteredPasswords.map((item) => (
             <div className="card" key={item.id}>
@@ -253,13 +319,11 @@ export default function App() {
                 {item.descripcion || 'Sin descripción'}
               </p>
 
-              {/* Usuario */}
               <div style={{ background: '#F8F9FA', padding: '8px', borderRadius: '6px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.usuario}</span>
                 <Copy size={14} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => copyToClipboard(item.usuario)} />
               </div>
 
-              {/* Contraseña */}
               <div style={{ background: '#F8F9FA', padding: '8px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '13px', fontFamily: 'monospace' }}>
                   {visiblePass[item.id] ? item.contrasena : '••••••••'}
@@ -278,13 +342,13 @@ export default function App() {
 
         {!loading && filteredPasswords.length === 0 && (
           <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
-            <p>No se encontraron registros de contraseñas.</p>
+            <p>No se encontraron registros.</p>
           </div>
         )}
       </div>
 
       {/* ========================================== */}
-      {/* MODAL PARA CREAR Y EDITAR                  */}
+      {/* MODAL 1: NUEVA / EDITAR CONTRASEÑA         */}
       {/* ========================================== */}
       {modalOpen && (
         <div className="modal-overlay">
@@ -293,54 +357,77 @@ export default function App() {
             <form onSubmit={handleSave} style={{ marginTop: '15px' }}>
               <div className="input-group">
                 <label>Aplicación o Sitio Web *</label>
-                <input 
-                  required 
-                  value={form.aplicacion} 
-                  onChange={e => setForm({ ...form, aplicacion: e.target.value })} 
-                  placeholder="Ej. Gmail, ERP, Banco" 
-                />
+                <input required value={form.aplicacion} onChange={e => setForm({ ...form, aplicacion: e.target.value })} placeholder="Ej. Gmail, ERP" />
               </div>
               <div className="input-group">
                 <label>Usuario o Correo *</label>
-                <input 
-                  required 
-                  value={form.usuario} 
-                  onChange={e => setForm({ ...form, usuario: e.target.value })} 
-                  placeholder="ejemplo@avecargo.com" 
-                />
+                <input required value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} placeholder="ejemplo@avecargo.com" />
               </div>
               <div className="input-group">
                 <label>Contraseña *</label>
-                <input 
-                  required 
-                  value={form.contrasena} 
-                  onChange={e => setForm({ ...form, contrasena: e.target.value })} 
-                />
+                <input required value={form.contrasena} onChange={e => setForm({ ...form, contrasena: e.target.value })} />
               </div>
               <div className="input-group">
                 <label>URL / Enlace (Opcional)</label>
-                <input 
-                  type="url" 
-                  value={form.url} 
-                  onChange={e => setForm({ ...form, url: e.target.value })} 
-                  placeholder="https://ejemplo.com" 
-                />
+                <input type="url" value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://ejemplo.com" />
               </div>
               <div className="input-group">
                 <label>Notas / Descripción</label>
-                <textarea 
-                  rows="2" 
-                  value={form.descripcion} 
-                  onChange={e => setForm({ ...form, descripcion: e.target.value })} 
-                  placeholder="Detalles adicionales..." 
+                <textarea rows="2" value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} placeholder="Detalles adicionales..." />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '15px' }}>
+                <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* MODAL 2: CAMBIAR MI CONTRASEÑA DE USUARIO  */}
+      {/* ========================================== */}
+      {passModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Cambiar mi Contraseña</h3>
+            <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
+              Usuario: <strong>{user.email}</strong>
+            </p>
+            <form onSubmit={handleChangePassword}>
+              <div className="input-group">
+                <label>Contraseña Actual</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={passForm.oldPassword} 
+                  onChange={e => setPassForm({ ...passForm, oldPassword: e.target.value })} 
+                />
+              </div>
+              <div className="input-group">
+                <label>Nueva Contraseña</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={passForm.newPassword} 
+                  onChange={e => setPassForm({ ...passForm, newPassword: e.target.value })} 
+                />
+              </div>
+              <div className="input-group">
+                <label>Confirmar Nueva Contraseña</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={passForm.confirmPassword} 
+                  onChange={e => setPassForm({ ...passForm, confirmPassword: e.target.value })} 
                 />
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '15px' }}>
-                <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>
+                <button type="button" className="btn btn-outline" onClick={() => setPassModalOpen(false)}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Guardando...' : 'Guardar'}
+                  {loading ? 'Actualizando...' : 'Actualizar'}
                 </button>
               </div>
             </form>
