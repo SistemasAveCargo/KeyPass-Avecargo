@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Key, Plus, Trash2, Edit, ExternalLink, Copy, Eye, EyeOff, LogOut, Download, UserPlus, LogIn, ShieldCheck, User } from 'lucide-react';
+import { Key, Plus, Trash2, Edit, ExternalLink, Copy, Eye, EyeOff, LogOut, Download, UserPlus, LogIn, ShieldCheck } from 'lucide-react';
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwYeqrIRsepHUaEOXiY9GpjLA-CS73qC09acKuJLf7KMNsbhXHyJF-vZglofNN6coD4/exec"; 
+// URL de tu API de Google Apps Script
+const API_URL = "https://script.google.com/macros/s/TU_SCRIPT_ID/exec"; 
 
 export default function App() {
   // --- ESTADOS DE AUTENTICACIÓN Y DATOS ---
@@ -16,7 +17,7 @@ export default function App() {
 
   // --- ESTADOS DE MODALES Y FORMULARIOS ---
   const [modalOpen, setModalOpen] = useState(false);
-  const [passModalOpen, setPassModalOpen] = useState(false); // Modal Cambiar Contraseña
+  const [passModalOpen, setPassModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [visiblePass, setVisiblePass] = useState({});
   
@@ -25,7 +26,7 @@ export default function App() {
   });
 
   const [passForm, setPassForm] = useState({
-    oldPassword: '', newPassword: '', confirmPassword: ''
+    newPassword: '', confirmPassword: ''
   });
 
   // --- PWA INSTALACIÓN ---
@@ -47,7 +48,7 @@ export default function App() {
     if (outcome === 'accepted') setDeferredPrompt(null);
   };
 
-  // --- API CALL ---
+  // --- PETICIÓN BASE A LA API ---
   const apiCall = async (data) => {
     try {
       const res = await fetch(API_URL, {
@@ -61,7 +62,7 @@ export default function App() {
     }
   };
 
-  // --- AUTENTICACIÓN ---
+  // --- LOGIN Y REGISTRO DE USUARIOS ---
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -88,7 +89,7 @@ export default function App() {
     }
   };
 
-  // --- CAMBIAR CONTRASEÑA DE USUARIO ---
+  // --- CAMBIAR CONTRASEÑA DIRECTA (SIN ANTERIOR) ---
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (passForm.newPassword !== passForm.confirmPassword) {
@@ -100,7 +101,6 @@ export default function App() {
     const res = await apiCall({ 
       action: 'changePassword', 
       email: user.email, 
-      oldPassword: passForm.oldPassword, 
       newPassword: passForm.newPassword 
     });
     setLoading(false);
@@ -108,13 +108,13 @@ export default function App() {
     if (res.success) {
       alert("Contraseña actualizada exitosamente.");
       setPassModalOpen(false);
-      setPassForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      setPassForm({ newPassword: '', confirmPassword: '' });
     } else {
       alert(res.message || "Error al actualizar la contraseña.");
     }
   };
 
-  // --- CRUD DE REGISTROS ---
+  // --- CRUD DE REGISTROS DE CONTRASEÑAS ---
   const loadPasswords = async () => {
     setLoading(true);
     const res = await apiCall({ action: 'getPasswords' });
@@ -162,6 +162,7 @@ export default function App() {
     setVisiblePass((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Filtrado dinámico
   const filteredPasswords = passwords.filter(p => 
     p.aplicacion.toLowerCase().includes(search.toLowerCase()) ||
     p.usuario.toLowerCase().includes(search.toLowerCase()) ||
@@ -247,23 +248,23 @@ export default function App() {
   }
 
   // ==========================================
-  // VISTA 2: VAULT DE CONTRASEÑAS
+  // VISTA 2: APLICACIÓN PRINCIPAL (VAULT)
   // ==========================================
   return (
     <div>
-      <nav style={{ background: 'white', borderBottom: '3px solid #D3131A', padding: '15px 0' }}>
+      {/* Barra de Navegación Superior */}
+      <nav style={{ background: 'white', borderBottom: '3px solid #D3131A', padding: '12px 0' }}>
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3>Ave<span style={{ color: '#D3131A' }}>Cargo</span> <small style={{ fontSize: '12px', color: '#666' }}>KeyPass</small></h3>
           
-          {/* Mensaje de Bienvenida */}
-          <span style={{ fontSize: '14px', color: '#2A2A2A', fontWeight: '500', borderLeft: '1px solid #ddd', paddingLeft: '15px' }}>
-            Hola, <strong style={{ color: '#D3131A' }}>{user.nombre}</strong>
-          </span>
-    
-          
-          
-          
-          
+          {/* Logo y Saludo con Nombre */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <h3 style={{ margin: 0 }}>Ave<span style={{ color: '#D3131A' }}>Cargo</span> <small style={{ fontSize: '12px', color: '#666' }}>KeyPass</small></h3>
+            <span style={{ fontSize: '14px', color: '#2A2A2A', fontWeight: '500', borderLeft: '1px solid #ddd', paddingLeft: '15px' }}>
+              Hola, <strong style={{ color: '#D3131A' }}>{user.nombre}</strong>
+            </span>
+          </div>
+
+          {/* Acciones */}
           <div style={{ display: 'flex', gap: '8px' }}>
             {deferredPrompt && (
               <button className="btn btn-primary" onClick={handleInstallClick}>
@@ -277,9 +278,11 @@ export default function App() {
               <LogOut size={16} />
             </button>
           </div>
+
         </div>
       </nav>
 
+      {/* Contenido Principal */}
       <div className="container" style={{ marginTop: '20px' }}>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
           <input 
@@ -301,8 +304,9 @@ export default function App() {
           </button>
         </div>
 
-        {loading && <p style={{ textAlign: 'center', margin: '20px 0' }}>Cargando...</p>}
+        {loading && <p style={{ textAlign: 'center', margin: '20px 0' }}>Cargando registros...</p>}
 
+        {/* Listado en Tarjetas */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
           {filteredPasswords.map((item) => (
             <div className="card" key={item.id}>
@@ -352,13 +356,13 @@ export default function App() {
 
         {!loading && filteredPasswords.length === 0 && (
           <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
-            <p>No se encontraron registros.</p>
+            <p>No se encontraron registros de contraseñas.</p>
           </div>
         )}
       </div>
 
       {/* ========================================== */}
-      {/* MODAL 1: NUEVA / EDITAR CONTRASEÑA         */}
+      {/* MODAL 1: CREAR / EDITAR CREDENCIAL          */}
       {/* ========================================== */}
       {modalOpen && (
         <div className="modal-overlay">
@@ -395,25 +399,16 @@ export default function App() {
       )}
 
       {/* ========================================== */}
-      {/* MODAL 2: CAMBIAR MI CONTRASEÑA DE USUARIO  */}
+      {/* MODAL 2: ESTABLECER NUEVA CONTRASEÑA       */}
       {/* ========================================== */}
       {passModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <h3>Cambiar mi Contraseña</h3>
+            <h3>Establecer Nueva Contraseña</h3>
             <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
               Usuario: <strong>{user.email}</strong>
             </p>
             <form onSubmit={handleChangePassword}>
-              <div className="input-group">
-                <label>Contraseña Actual</label>
-                <input 
-                  type="password" 
-                  required 
-                  value={passForm.oldPassword} 
-                  onChange={e => setPassForm({ ...passForm, oldPassword: e.target.value })} 
-                />
-              </div>
               <div className="input-group">
                 <label>Nueva Contraseña</label>
                 <input 
@@ -421,6 +416,7 @@ export default function App() {
                   required 
                   value={passForm.newPassword} 
                   onChange={e => setPassForm({ ...passForm, newPassword: e.target.value })} 
+                  placeholder="••••••••"
                 />
               </div>
               <div className="input-group">
@@ -430,6 +426,7 @@ export default function App() {
                   required 
                   value={passForm.confirmPassword} 
                   onChange={e => setPassForm({ ...passForm, confirmPassword: e.target.value })} 
+                  placeholder="••••••••"
                 />
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '15px' }}>
@@ -437,7 +434,7 @@ export default function App() {
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Actualizando...' : 'Actualizar'}
+                  {loading ? 'Actualizando...' : 'Guardar Nueva Contraseña'}
                 </button>
               </div>
             </form>
