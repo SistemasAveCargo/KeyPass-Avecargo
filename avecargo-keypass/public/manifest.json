@@ -1,0 +1,17 @@
+{
+  "short_name": "KeyPass",
+  "name": "KeyPass - AveCargo",
+  "icons": [
+    {
+      "src": "/key-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#D3131A",
+  "display": "standalone",
+  "orientation": "portrait"
+}
