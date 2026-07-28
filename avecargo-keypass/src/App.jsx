@@ -254,6 +254,16 @@ export default function App() {
       <nav style={{ background: 'white', borderBottom: '3px solid #D3131A', padding: '15px 0' }}>
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3>Ave<span style={{ color: '#D3131A' }}>Cargo</span> <small style={{ fontSize: '12px', color: '#666' }}>KeyPass</small></h3>
+          
+          {/* Mensaje de Bienvenida */}
+          <span style={{ fontSize: '14px', color: '#2A2A2A', fontWeight: '500', borderLeft: '1px solid #ddd', paddingLeft: '15px' }}>
+            Hola, <strong style={{ color: '#D3131A' }}>{user.nombre}</strong>
+          </span>
+    
+          
+          
+          
+          
           <div style={{ display: 'flex', gap: '8px' }}>
             {deferredPrompt && (
               <button className="btn btn-primary" onClick={handleInstallClick}>
