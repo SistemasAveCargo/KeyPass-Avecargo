@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Key, Plus, Trash2, Edit, ExternalLink, Copy, Eye, EyeOff, LogOut, Download, UserPlus, LogIn, ShieldCheck } from 'lucide-react';
+import { Key, Plus, Trash2, Edit, ExternalLink, Copy, Eye, EyeOff, LogOut, Download, UserPlus, LogIn, ShieldCheck, Globe, Lock } from 'lucide-react';
 
 // URL de tu API de Google Apps Script
-const API_URL = "https://script.google.com/macros/s/AKfycbwYeqrIRsepHUaEOXiY9GpjLA-CS73qC09acKuJLf7KMNsbhXHyJF-vZglofNN6coD4/exec"; 
+const API_URL = "https://script.google.com/macros/s/TU_SCRIPT_ID/exec"; 
 
 export default function App() {
   // --- ESTADOS DE AUTENTICACIÓN Y DATOS ---
@@ -22,7 +22,7 @@ export default function App() {
   const [visiblePass, setVisiblePass] = useState({});
   
   const [form, setForm] = useState({ 
-    aplicacion: '', usuario: '', contrasena: '', url: '', descripcion: '' 
+    aplicacion: '', usuario: '', contrasena: '', url: '', descripcion: '', esPublico: false 
   });
 
   const [passForm, setPassForm] = useState({
@@ -62,7 +62,7 @@ export default function App() {
     }
   };
 
-  // --- LOGIN Y REGISTRO DE USUARIOS ---
+  // --- LOGIN Y REGISTRO ---
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -89,7 +89,7 @@ export default function App() {
     }
   };
 
-  // --- CAMBIAR CONTRASEÑA DIRECTA (SIN ANTERIOR) ---
+  // --- CAMBIAR CONTRASEÑA DE USUARIO ---
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (passForm.newPassword !== passForm.confirmPassword) {
@@ -114,7 +114,7 @@ export default function App() {
     }
   };
 
-  // --- CRUD DE REGISTROS DE CONTRASEÑAS ---
+  // --- CRUD DE REGISTROS ---
   const loadPasswords = async () => {
     setLoading(true);
     const res = await apiCall({ action: 'getPasswords' });
@@ -126,23 +126,29 @@ export default function App() {
     e.preventDefault();
     setLoading(true);
     const payload = editingItem ? { ...form, id: editingItem.id } : form;
-    const res = await apiCall({ action: 'savePassword', item: payload });
+    
+    const res = await apiCall({ 
+      action: 'savePassword', 
+      item: payload, 
+      currentUser: user.email 
+    });
     setLoading(false);
     
     if (res.success) {
       setModalOpen(false);
-      setForm({ aplicacion: '', usuario: '', contrasena: '', url: '', descripcion: '' });
+      setForm({ aplicacion: '', usuario: '', contrasena: '', url: '', descripcion: '', esPublico: false });
       setEditingItem(null);
       loadPasswords();
     } else {
-      alert("Error al guardar el registro.");
+      alert(res.message || "Error al guardar el registro.");
     }
   };
 
   const handleDelete = async (id) => {
     if (confirm("¿Estás seguro de que deseas eliminar esta contraseña?")) {
       setLoading(true);
-      await apiCall({ action: 'deletePassword', id });
+      const res = await apiCall({ action: 'deletePassword', id, currentUser: user.email });
+      if (!res.success) alert(res.message);
       loadPasswords();
     }
   };
@@ -162,8 +168,15 @@ export default function App() {
     setVisiblePass((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Filtrado dinámico
-  const filteredPasswords = passwords.filter(p => 
+  // --- FILTRADO DE PERMISOS Y BÚSQUEDA ---
+  // Muestra mis registros propios O los públicos de otros usuarios
+  const visiblePasswords = passwords.filter(p => {
+    const isOwner = p.creadoPor.toLowerCase() === user.email.toLowerCase();
+    const isPublic = p.esPublico;
+    return isOwner || isPublic;
+  });
+
+  const filteredPasswords = visiblePasswords.filter(p => 
     p.aplicacion.toLowerCase().includes(search.toLowerCase()) ||
     p.usuario.toLowerCase().includes(search.toLowerCase()) ||
     (p.descripcion && p.descripcion.toLowerCase().includes(search.toLowerCase()))
@@ -252,11 +265,10 @@ export default function App() {
   // ==========================================
   return (
     <div>
-      {/* Barra de Navegación Superior */}
+      {/* Barra Superior */}
       <nav style={{ background: 'white', borderBottom: '3px solid #D3131A', padding: '12px 0' }}>
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           
-          {/* Logo y Saludo con Nombre */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <h3 style={{ margin: 0 }}>Ave<span style={{ color: '#D3131A' }}>Cargo</span> <small style={{ fontSize: '12px', color: '#666' }}>KeyPass</small></h3>
             <span style={{ fontSize: '14px', color: '#2A2A2A', fontWeight: '500', borderLeft: '1px solid #ddd', paddingLeft: '15px' }}>
@@ -264,7 +276,6 @@ export default function App() {
             </span>
           </div>
 
-          {/* Acciones */}
           <div style={{ display: 'flex', gap: '8px' }}>
             {deferredPrompt && (
               <button className="btn btn-primary" onClick={handleInstallClick}>
@@ -282,7 +293,7 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Contenido Principal */}
+      {/* Contenido */}
       <div className="container" style={{ marginTop: '20px' }}>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
           <input 
@@ -296,7 +307,7 @@ export default function App() {
             className="btn btn-primary" 
             onClick={() => { 
               setEditingItem(null); 
-              setForm({ aplicacion: '', usuario: '', contrasena: '', url: '', descripcion: '' }); 
+              setForm({ aplicacion: '', usuario: '', contrasena: '', url: '', descripcion: '', esPublico: false }); 
               setModalOpen(true); 
             }}
           >
@@ -306,63 +317,101 @@ export default function App() {
 
         {loading && <p style={{ textAlign: 'center', margin: '20px 0' }}>Cargando registros...</p>}
 
-        {/* Listado en Tarjetas */}
+        {/* Tarjetas */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
-          {filteredPasswords.map((item) => (
-            <div className="card" key={item.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <strong style={{ fontSize: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>
+          {filteredPasswords.map((item) => {
+            const isOwner = item.creadoPor.toLowerCase() === user.email.toLowerCase();
+
+            return (
+              <div className="card" key={item.id}>
+                
+                {/* Header de la Tarjeta */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ 
+                    fontSize: '11px', 
+                    padding: '2px 8px', 
+                    borderRadius: '12px', 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '4px',
+                    background: item.esPublico ? '#E3F2FD' : '#F5F5F5',
+                    color: item.esPublico ? '#1976D2' : '#616161',
+                    fontWeight: '500'
+                  }}>
+                    {item.esPublico ? <Globe size={12} /> : <Lock size={12} />}
+                    {item.esPublico ? 'Compartido' : 'Privado'}
+                  </span>
+
+                  {/* Acciones */}
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    {item.url && (
+                      <a href={item.url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ padding: '4px 8px' }}>
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
+                    {isOwner && (
+                      <>
+                        <button className="btn btn-outline" style={{ padding: '4px 8px' }} onClick={() => openEdit(item)}>
+                          <Edit size={14} />
+                        </button>
+                        <button className="btn btn-outline" style={{ padding: '4px 8px', color: 'red' }} onClick={() => handleDelete(item.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <strong style={{ fontSize: '18px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '4px' }}>
                   {item.aplicacion}
                 </strong>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  {item.url && (
-                    <a href={item.url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ padding: '4px 8px' }}>
-                      <ExternalLink size={14} />
-                    </a>
-                  )}
-                  <button className="btn btn-outline" style={{ padding: '4px 8px' }} onClick={() => openEdit(item)}>
-                    <Edit size={14} />
-                  </button>
-                  <button className="btn btn-outline" style={{ padding: '4px 8px', color: 'red' }} onClick={() => handleDelete(item.id)}>
-                    <Trash2 size={14} />
-                  </button>
+
+                {/* Descripción */}
+                <p style={{ fontSize: '12px', color: '#666', marginBottom: '4px', minHeight: '18px' }}>
+                  {item.descripcion || 'Sin descripción'}
+                </p>
+
+                {/* Creador (Solo si es compartido y no es propio) */}
+                {item.esPublico && !isOwner && (
+                  <p style={{ fontSize: '11px', color: '#888', fontStyle: 'italic', marginBottom: '10px' }}>
+                    Compartido por: {item.creadoPor}
+                  </p>
+                )}
+
+                {/* Usuario */}
+                <div style={{ background: '#F8F9FA', padding: '8px', borderRadius: '6px', marginBottom: '8px', marginTop: (item.esPublico && !isOwner) ? '0px' : '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.usuario}</span>
+                  <Copy size={14} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => copyToClipboard(item.usuario)} />
                 </div>
-              </div>
 
-              <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px', minHeight: '18px' }}>
-                {item.descripcion || 'Sin descripción'}
-              </p>
-
-              <div style={{ background: '#F8F9FA', padding: '8px', borderRadius: '6px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.usuario}</span>
-                <Copy size={14} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => copyToClipboard(item.usuario)} />
-              </div>
-
-              <div style={{ background: '#F8F9FA', padding: '8px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', fontFamily: 'monospace' }}>
-                  {visiblePass[item.id] ? item.contrasena : '••••••••'}
-                </span>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {visiblePass[item.id] ? 
-                    <EyeOff size={14} style={{ cursor: 'pointer' }} onClick={() => toggleVisibility(item.id)} /> : 
-                    <Eye size={14} style={{ cursor: 'pointer' }} onClick={() => toggleVisibility(item.id)} />
-                  }
-                  <Copy size={14} style={{ cursor: 'pointer' }} onClick={() => copyToClipboard(item.contrasena)} />
+                {/* Contraseña */}
+                <div style={{ background: '#F8F9FA', padding: '8px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontFamily: 'monospace' }}>
+                    {visiblePass[item.id] ? item.contrasena : '••••••••'}
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {visiblePass[item.id] ? 
+                      <EyeOff size={14} style={{ cursor: 'pointer' }} onClick={() => toggleVisibility(item.id)} /> : 
+                      <Eye size={14} style={{ cursor: 'pointer' }} onClick={() => toggleVisibility(item.id)} />
+                    }
+                    <Copy size={14} style={{ cursor: 'pointer' }} onClick={() => copyToClipboard(item.contrasena)} />
+                  </div>
                 </div>
+
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {!loading && filteredPasswords.length === 0 && (
           <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
-            <p>No se encontraron registros de contraseñas.</p>
+            <p>No se encontraron registros disponibles.</p>
           </div>
         )}
       </div>
 
       {/* ========================================== */}
-      {/* MODAL 1: CREAR / EDITAR CREDENCIAL          */}
+      {/* MODAL 1: CREAR / EDITAR                    */}
       {/* ========================================== */}
       {modalOpen && (
         <div className="modal-overlay">
@@ -389,6 +438,23 @@ export default function App() {
                 <label>Notas / Descripción</label>
                 <textarea rows="2" value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} placeholder="Detalles adicionales..." />
               </div>
+
+              {/* Visibilidad */}
+              <div style={{ background: '#F8F9FA', padding: '12px', borderRadius: '6px', margin: '15px 0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0, fontWeight: '500' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={form.esPublico} 
+                    onChange={e => setForm({ ...form, esPublico: e.target.checked })} 
+                    style={{ width: '18px', height: '18px', accentColor: '#D3131A' }}
+                  />
+                  <span>Compartir con toda la empresa</span>
+                </label>
+                <p style={{ fontSize: '11px', color: '#666', margin: '5px 0 0 28px' }}>
+                  Si se marca, todos los usuarios podrán ver y copiar esta contraseña, pero solo tú podrás editarla o borrarla.
+                </p>
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '15px' }}>
                 <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Guardando...' : 'Guardar'}</button>
@@ -399,7 +465,7 @@ export default function App() {
       )}
 
       {/* ========================================== */}
-      {/* MODAL 2: ESTABLECER NUEVA CONTRASEÑA       */}
+      {/* MODAL 2: CAMBIAR CONTRASEÑA DE USUARIO      */}
       {/* ========================================== */}
       {passModalOpen && (
         <div className="modal-overlay">
