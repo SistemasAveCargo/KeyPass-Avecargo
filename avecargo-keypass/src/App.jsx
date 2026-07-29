@@ -176,11 +176,14 @@ export default function App() {
     return isOwner || isPublic;
   });
 
-  const filteredPasswords = visiblePasswords.filter(p => 
-    p.aplicacion.toLowerCase().includes(search.toLowerCase()) ||
-    p.usuario.toLowerCase().includes(search.toLowerCase()) ||
-    (p.descripcion && p.descripcion.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredPasswords = visiblePasswords.filter(p => {
+  const query = search.toLowerCase();
+  const app = String(p.aplicacion || '').toLowerCase();
+  const userStr = String(p.usuario || '').toLowerCase();
+  const desc = String(p.descripcion || '').toLowerCase();
+
+  return app.includes(query) || userStr.includes(query) || desc.includes(query);
+});
 
   // ==========================================
   // VISTA 1: LOGIN Y REGISTRO
