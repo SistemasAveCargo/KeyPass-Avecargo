@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Key, Plus, Trash2, Edit, ExternalLink, Copy, Eye, EyeOff, LogOut, Download, UserPlus, LogIn, ShieldCheck, Globe, Lock } from 'lucide-react';
 
 // URL de tu API de Google Apps Script
-const API_URL = "https://script.google.com/macros/s/TU_SCRIPT_ID/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbzBRZlQFqF17O-ZuAOnPkuIAv4hGdUpL7e1I6yXII1LatoUFvmAe9eWgYEXRae4UuDO/exec"; 
 
 export default function App() {
   // --- ESTADOS DE AUTENTICACIÓN Y DATOS ---
